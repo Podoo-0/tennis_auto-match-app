@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎾 테니스 스코어보드</title>
+<style>
+:root{
+  --blue:#2979ff;
+  --blue-light:#e8f0fe;
+  --blue-mid:#1565c0;
+  --blue-border:#90b8ff;
+  --bg:#f5f7fa;
+  --white:#ffffff;
+  --line:#e8ecf2;
+  --text:#1a2535;
+  --muted:#8896a8;
+  --red:#ef4444;
+  --green:#22c55e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Apple SD Gothic Neo','-apple-system','BlinkMacSystemFont','Malgun Gothic',sans-serif;background:var(--bg);min-height:100vh}
+.app{max-width:480px;margin:0 auto;min-height:100vh}
+
+/* 탭바 */
+.tab-bar{display:flex;position:sticky;top:0;z-index:100;background:#fff;border-bottom:2px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.tab-btn{flex:1;padding:15px 8px;font-size:14px;font-weight:500;color:var(--muted);border:none;background:#fff;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all 0.18s}
+.tab-btn.active{color:var(--blue);font-weight:700;border-bottom-color:var(--blue)}
+
+.panel{display:none;padding:12px}.panel.active{display:block}
+
+/* ── 대진표 탭 ── */
+.card{background:#fff;border-radius:14px;padding:16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.card-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px}
+.player-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.p-idx{font-size:12px;color:#aaa;width:16px;text-align:center;flex-shrink:0}
+.p-name{flex:1;min-width:0;border:1.5px solid #e0e0e0;border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text);outline:none;transition:border-color 0.15s;background:#fff}
+.p-name:focus{border-color:var(--blue)}
+.gd-wrap{display:flex;border-radius:8px;overflow:hidden;border:1.5px solid #e0e0e0;flex-shrink:0}
+.g-btn{width:34px;height:36px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:#f5f5f5;color:#bbb;transition:all 0.1s;padding:0;line-height:36px;text-align:center}
+.g-btn.m.on{background:#2563eb;color:#fff}
+.g-btn.f.on{background:#dc2626;color:#fff}
+.min-g{width:40px;height:36px;border:1.5px solid #e0e0e0;border-radius:8px;text-align:center;font-size:13px;color:var(--text);background:#fff;flex-shrink:0}
+.del-btn{width:32px;height:32px;border-radius:50%;border:none;background:#fef2f2;color:#dc2626;font-size:14px;cursor:pointer;flex-shrink:0;transition:background 0.1s}
+.del-btn:hover{background:#fecaca}
+.btn-row{display:flex;gap:8px;margin-top:8px}
+.btn-sec{flex:1;padding:10px;border:1.5px dashed #ccc;border-radius:8px;background:none;color:#666;font-size:13px;cursor:pointer;transition:background 0.1s}
+.btn-sec:hover{background:#f5f5f5}
+.s-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid #f0f0f0}
+.s-row:last-child{border-bottom:none;padding-bottom:0}
+.s-lbl{font-size:14px;color:var(--text)}
+.s-ctrl{border:1.5px solid #e0e0e0;border-radius:8px;padding:7px 10px;font-size:13px;background:#fff;color:var(--text);outline:none}
+input.s-ctrl{width:72px;text-align:right}
+select.s-ctrl{min-width:120px}
+.wish{width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:10px;font-size:13px;background:#fff;color:var(--text);resize:none;line-height:1.5;font-family:inherit}
+.wish:focus{outline:none;border-color:var(--blue)}
+.cc{font-size:11px;color:#aaa;text-align:right;margin-top:4px}
+.btn-gen{width:100%;padding:15px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;letter-spacing:-0.3px;transition:background 0.15s}
+.btn-gen:hover{background:var(--blue-mid)}
+.btn-gen:disabled{background:#ccc;cursor:not-allowed}
+
+/* ── 스코어보드: 라이트 + 블루 포인트 ── */
+
+/* 현재 라운드 배너 */
+.now-banner{
+  background:var(--blue);
+  border-radius:16px;padding:16px;margin-bottom:12px;
+  position:relative;overflow:hidden;
+}
+.now-banner::after{
+  content:'';position:absolute;right:-20px;top:-20px;
+  width:100px;height:100px;border-radius:50%;
+  background:rgba(255,255,255,0.08);
+}
+.now-title{font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);margin-bottom:8px;letter-spacing:0.5px;text-transform:uppercase}
+.now-line{font-size:14px;line-height:2;color:#fff;font-weight:500}
+.next-line{font-size:12px;color:rgba(255,255,255,0.65);margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.2)}
+
+/* 라운드 카드 */
+.round-card{background:#fff;border-radius:16px;margin-bottom:12px;overflow:hidden;box-shadow:0 2px 8px rgba(41,121,255,0.08);border:1px solid var(--line)}
+.round-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--bg)}
+.round-title{font-size:14px;font-weight:700;color:var(--text);letter-spacing:0.3px}
+.now-badge{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:var(--blue);color:#fff;padding:3px 10px;border-radius:20px}
+.round-time{font-size:12px;color:var(--muted)}
+
+/* 경기 블록 */
+.match-block{padding:16px;border-bottom:1px solid var(--line)}
+.match-block:last-of-type{border-bottom:none}
+.m-meta{display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.m-court{font-size:11px;color:var(--muted);font-weight:500}
+.m-type{font-size:10px;padding:3px 10px;border-radius:20px;font-weight:800;letter-spacing:0.3px}
+.m-type.male{background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd}
+.m-type.mixed{background:#fff;color:#374151;border:2px solid transparent;background-clip:padding-box;outline:2px solid #818cf8;outline-offset:-2px}
+.m-type.partial{background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd}
+.m-type.female{background:#fce7f3;color:#be185d;border:1px solid #f9a8d4}
+
+/* 팀 박스 */
+.match-row{display:grid;grid-template-columns:1fr 40px 1fr;align-items:center;gap:8px}
+.team-box{background:var(--bg);border:1.5px solid var(--line);border-radius:14px;padding:14px 8px;text-align:center;transition:all 0.2s}
+.team-box.winner{background:var(--blue-light);border-color:var(--blue-border);box-shadow:0 2px 12px rgba(41,121,255,0.15)}
+.t-emoji{font-size:26px;margin-bottom:6px;display:block}
+.t-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.4}
+.team-box.winner .t-name{color:var(--blue-mid)}
+.vs-col{text-align:center;font-size:11px;font-weight:800;color:var(--muted);letter-spacing:1px}
+
+/* 점수 컨트롤 */
+.score-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.team-btns{display:flex;align-items:center;justify-content:center;gap:12px}
+.sc-btn{width:40px;height:40px;border-radius:50%;border:none;font-size:22px;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;transition:transform 0.1s}
+.sc-btn:active{transform:scale(0.86)}
+.b-minus{background:#fee2e2;color:var(--red)}
+.b-plus{background:var(--blue-light);color:var(--blue)}
+.b-plus:hover{background:#cfdffe}
+.t-score{font-size:30px;font-weight:900;color:var(--text);min-width:32px;text-align:center;font-variant-numeric:tabular-nums}
+
+/* 쉬는 중 */
+.rest-bar{background:var(--bg);padding:10px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}
+
+/* 승리 현황 */
+.stand-hdr{background:var(--blue);border-radius:16px;padding:16px;margin:12px 0 10px;text-align:center;position:relative;overflow:hidden}
+.stand-hdr::before{content:'';position:absolute;left:-30px;bottom:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.07)}
+.stand-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:10px;letter-spacing:0.3px;text-transform:uppercase}
+.prog-bg{background:rgba(255,255,255,0.25);border-radius:20px;height:6px;overflow:hidden}
+.prog-fill{background:#fff;height:100%;border-radius:20px;transition:width 0.5s}
+
+.stand-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stand-item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:8px;box-shadow:0 1px 4px rgba(0,0,0,0.04);transition:border-color 0.15s}
+.stand-item:hover{border-color:var(--blue-border)}
+.st-emoji{font-size:20px;flex-shrink:0}
+.st-info{flex:1;min-width:0}
+.st-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-pts{font-size:11px;color:var(--muted);margin-top:1px}
+.st-wins{font-size:16px;font-weight:800;color:var(--blue);white-space:nowrap}
+.st-games{font-size:11px;font-weight:400;color:var(--muted);margin-left:3px}
+.mf-m{font-size:10px;font-weight:700;color:#2563eb;margin-left:2px;vertical-align:middle}
+.ace-btn{height:36px;padding:0 8px;border:1.5px solid #e0e0e0;border-radius:8px;background:#f5f5f5;color:#bbb;font-size:11px;font-weight:800;cursor:pointer;flex-shrink:0;transition:all 0.1s;letter-spacing:0.5px}
+.ace-btn.on{background:#f59e0b;border-color:#d97706;color:#fff}
+.mf-f{font-size:10px;font-weight:700;color:#dc2626;margin-left:2px;vertical-align:middle}
+.ace-badge{font-size:9px;font-weight:800;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:4px;margin-left:3px;vertical-align:middle;letter-spacing:0.3px}
+
+.empty{text-align:center;padding:3rem 1rem;color:var(--muted);font-size:13px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;color:#fff;z-index:9999;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.18)}
+.toast.ok{background:#22c55e}
+.toast.warn{background:#f59e0b}
+.toast.error{background:#ef4444}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+<div class="app">
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('setup')">📋 대진표 생성</button>
+  <button class="tab-btn" onclick="showTab('score')">🎾 스코어보드</button>
+</div>
+
+<div id="panel-setup" class="panel active">
+  <div class="card">
+    <div id="player-list"></div>
+    <div class="btn-row">
+      <button class="btn-sec" id="btn-add" onclick="addPlayer()">+ 참가자 추가</button>
+    </div>
+    <div class="btn-row" style="margin-top:4px">
+      <button class="btn-sec" onclick="savePreset()">💾 프리셋 저장</button>
+      <button class="btn-sec" onclick="loadPreset()">📂 프리셋 불러오기</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">⚙️ 경기 설정</div>
+    <div class="s-row">
+      <span class="s-lbl">🏟️ 코트 수</span>
+      <select class="s-ctrl" id="s-courts">
+        <option value="1">1코트</option>
+        <option value="2" selected>2코트</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span class="s-lbl">⏱️ 경기 시간(분)</span>
+      <input type="number" class="s-ctrl" id="s-time" value="15" min="5" max="120">
+    </div>
+    <div class="s-row">
+      <span class="s-lbl">🕐 시작 시간</span>
+      <select class="s-ctrl" id="s-start"></select>
+    </div>
+    <div class="s-row">
+      <span class="s-lbl">🏁 종료 시간</span>
+      <select class="s-ctrl" id="s-end"></select>
+    </div>
+    <div class="s-row">
+      <span class="s-lbl">🤸 몸풀기(분)</span>
+      <input type="number" class="s-ctrl" id="s-warm" value="10" min="0" max="60">
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">💬 희망사항</div>
+    <textarea class="wish" id="s-wish" rows="3" maxlength="50" placeholder="예: 여자복식과 남자복식이 최소 3게임 되도록 구성" oninput="updateCC()"></textarea>
+    <div class="cc" id="cc">0/50</div>
+  </div>
+  <button class="btn-gen" id="btn-gen" onclick="generate()" disabled>🎾 대진표 생성</button>
+</div>
+
+<div id="panel-score" class="panel">
+  <div id="score-content"><div class="empty">대진표를 먼저 생성해주세요</div></div>
+</div>
+</div>
+
+<script>
+// 트렌디한 이모지 세트 — 자연/감성/힙한 조합
+const EMOJIS=['🔴','🔺','🟦','⭐','🎾','⚽','🏀','⚾','🐶','🐰','🦁','🐘','🎹','🎸','🥁','🎷'];
+
+let S={players:[],courts:2,matches:[],scores:{},uid:1};
+
+function buildOpts(id,def){
+  const el=document.getElementById(id); el.innerHTML='';
+  for(let h=6;h<=24;h++){
+    for(let m=0;m<60;m+=30){
+      if(h===24&&m>0)break;
+      const tot=h*60+m;
+      const ap=h>=12?'오후':'오전';
+      const dh=h===0?12:h>12?h-12:h;
+      const o=document.createElement('option');
+      o.value=tot; o.textContent=ap+' '+dh+':'+(m===0?'00':'30');
+      if(tot===def)o.selected=true;
+      el.appendChild(o);
+    }
+  }
+}
+buildOpts('s-start',19*60);
+buildOpts('s-end',22*60);
+
+function addPlayer(){
+  if(S.players.length>=16)return;
+  const i=S.players.length;
+  S.players.push({id:S.uid++,name:'',gender:'M',ace:false,minGames:3,emoji:EMOJIS[i%16]});
+  renderPlayers();
+}
+
+function showToast(msg, type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast '+type+' show';
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+function savePreset(){
+  const data=S.players.map(p=>({name:p.name,gender:p.gender,ace:p.ace||false,minGames:p.minGames,emoji:p.emoji}));
+  localStorage.setItem('tennis_preset',JSON.stringify(data));
+  showToast('프리셋 저장 완료 ('+data.length+'명)','ok');
+}
+
+function loadPreset(){
+  const saved=localStorage.getItem('tennis_preset');
+  if(!saved){showToast('저장된 프리셋이 없습니다. 먼저 프리셋 저장을 해주세요.','error');return;}
+  const data=JSON.parse(saved);
+  S.players=[];S.uid=1;
+  data.forEach((p,i)=>S.players.push({id:S.uid++,name:p.name,gender:p.gender,ace:p.ace||false,minGames:p.minGames||3,emoji:EMOJIS[i%16]}));
+  renderPlayers();
+  showToast('프리셋 불러오기 완료 ('+data.length+'명)','ok');
+}
+
+function delP(id){S.players=S.players.filter(p=>p.id!==id);renderPlayers();}
+function setG(id,g){const p=S.players.find(x=>x.id===id);if(p){p.gender=g;renderPlayers();}}
+function setAce(id){const p=S.players.find(x=>x.id===id);if(p){p.ace=!p.ace;renderPlayers();}}
+function upN(id,v){const p=S.players.find(x=>x.id===id);if(p)p.name=v;}
+function upM(id,v){const p=S.players.find(x=>x.id===id);if(p)p.minGames=Math.max(1,parseInt(v)||1);}
+function updateCC(){document.getElementById('cc').textContent=document.getElementById('s-wish').value.length+'/50';}
+
+function renderPlayers(){
+  document.getElementById('player-list').innerHTML=S.players.map((p,i)=>`
+    <div class="player-row">
+      <span class="p-idx">${i+1}</span>
+      <input class="p-name" value="${p.name}" placeholder="이름 입력" oninput="upN(${p.id},this.value)">
+      <div class="gd-wrap">
+        <button class="g-btn m${p.gender==='M'?' on':''}" onclick="setG(${p.id},'M')">M</button>
+        <button class="g-btn f${p.gender==='F'?' on':''}" onclick="setG(${p.id},'F')">F</button>
+      </div>
+      <button class="ace-btn${p.ace?' on':''}" onclick="setAce(${p.id})" title="ACE (실력 상위자)">ACE</button>
+      <button class="del-btn" onclick="delP(${p.id})">🗑</button>
+    </div>`).join('');
+  document.getElementById('btn-add').style.display=S.players.length>=16?'none':'';
+  document.getElementById('btn-gen').disabled=S.players.length<4;
+}
+
+function shuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
+function pad(n){return String(n).padStart(2,'0');}
+
+function generate(){
+  const players=S.players.filter(p=>p.name.trim());
+  if(players.length<4){showToast('최소 4명이 필요합니다.','error');return;}
+  const males=players.filter(p=>p.gender==='M');
+  const females=players.filter(p=>p.gender==='F');
+  if(males.length<2&&females.length<2){showToast('참가자가 부족합니다. (남자 또는 여자 최소 2명 필요)','error');return;}
+  if(players.length<4){showToast('최소 4명이 필요합니다.','error');return;}
+
+  // 설정값 읽기 (let courts로 먼저 선언 후 조정)
+  let courts=parseInt(document.getElementById('s-courts').value)||2;
+  const gt=parseInt(document.getElementById('s-time').value)||15;
+  const warm=parseInt(document.getElementById('s-warm').value)||0;
+  const startM=parseInt(document.getElementById('s-start').value);
+  const endM=parseInt(document.getElementById('s-end').value);
+  if(endM<=startM){showToast('종료 시간이 시작 시간보다 늦어야 합니다.','error');return;}
+
+  // 코트 수 자동 조정
+  const maxCourtsByM=Math.floor(males.length/2);
+  // 혼복 기준: 여자도 2명/코트 필요. 여자 없으면 남복만 → 남자 기준만
+  const maxCourtsByF=females.length>=2?Math.floor(females.length/2):maxCourtsByM;
+  const maxCourts=Math.min(maxCourtsByF,maxCourtsByM);
+  if(courts>maxCourts){
+    courts=Math.max(1,maxCourts);
+    showToast('인원 기준 '+courts+'코트로 자동 조정됐습니다.','warn');
+  }
+
+  const available=endM-startM-warm;
+  const maxRounds=Math.floor(available/gt);
+  if(maxRounds<1){showToast('시간이 너무 짧습니다. 종료 시간을 늘려주세요.','error');return;}
+
+  const playCnt={};
+  players.forEach(p=>playCnt[p.id]=0);
+  const allMatches=[];
+
+  // ACE 가중치: ACE남=3, 일반남=2, ACE여=2, 일반여=1
+  function pw(p){return p.gender==='M'?(p.ace?3:2):(p.ace?2:1);}
+  function tw(team){return team.reduce((s,p)=>s+pw(p),0);}
+
+  function getBestPairing(pool){
+    const combos=[
+      [[pool[0],pool[1]],[pool[2],pool[3]]],
+      [[pool[0],pool[2]],[pool[1],pool[3]]],
+      [[pool[0],pool[3]],[pool[1],pool[2]]],
+    ].filter(([tA,tB])=>
+      !(tA[0].gender==='F'&&tA[1].gender==='F')&&
+      !(tB[0].gender==='F'&&tB[1].gender==='F')
+    );
+    if(!combos.length) return null;
+    return combos.reduce((a,b)=>
+      Math.abs(tw(a[0])-tw(a[1]))<=Math.abs(tw(b[0])-tw(b[1]))?a:b
+    );
+  }
+
+  for(let r=0;r<maxRounds;r++){
+    const needed=courts*4;
+    if(players.length<needed) break;
+
+    // 성별 무관 균등 선발 (적게 뛴 순, 동점자 랜덤)
+    const sorted=[...players].sort((a,b)=>{
+      const diff=playCnt[a.id]-playCnt[b.id];
+      return diff!==0?diff:Math.random()-0.5;
+    });
+    let selected=sorted.slice(0,needed);
+
+    // 여자 초과 시 남자로 교환 (여여 방지)
+    const fInSel=selected.filter(p=>p.gender==='F').length;
+    if(fInSel>courts*2){
+      const excess=fInSel-courts*2;
+      const extraM=sorted.slice(needed).filter(p=>p.gender==='M').slice(0,excess);
+      if(extraM.length>=excess){
+        const fToSwap=selected.filter(p=>p.gender==='F').slice(courts*2);
+        selected=selected.filter(p=>!fToSwap.includes(p));
+        selected.push(...extraM);
+      }
+    }
+    if(selected.length<needed) continue;
+
+    const roundMatches=[];
+    let ok=true;
+    for(let c=0;c<courts;c++){
+      const pool=selected.slice(c*4,(c+1)*4);
+      if(pool.length<4){ok=false;break;}
+      const pair=getBestPairing(pool);
+      if(!pair){ok=false;break;}
+      const tAisMix=pair[0][0].gender!==pair[0][1].gender;
+      const tBisMix=pair[1][0].gender!==pair[1][1].gender;
+      const type=tAisMix&&tBisMix?'mixed':(!tAisMix&&!tBisMix?'male':'partial');
+      roundMatches.push({court:c+1,tA:pair[0],tB:pair[1],type});
+    }
+
+    if(!ok||roundMatches.length===0) continue;
+    roundMatches.forEach(m=>{
+      allMatches.push({round:r+1,...m});
+      [...m.tA,...m.tB].forEach(p=>playCnt[p.id]++);
+    });
+  }
+
+  if(!allMatches.length){showToast('대진표를 생성할 수 없습니다. 설정을 확인해주세요.','error');return;}
+
+  S.matches=[];S.scores={};
+  let mNo=1,tMin=startM+warm;
+  const rounds=[...new Set(allMatches.map(m=>m.round))];
+  rounds.forEach(r=>{
+    const ts=pad(Math.floor(tMin/60)%24)+':'+pad(tMin%60);
+    const te=pad(Math.floor((tMin+gt)/60)%24)+':'+pad((tMin+gt)%60);
+    allMatches.filter(m=>m.round===r).forEach(m=>{
+      const id='m'+mNo;
+      S.matches.push({id,round:r,no:mNo,court:m.court,time:ts,endTime:te,a:m.tA,b:m.tB,type:m.type,scored:false});
+      S.scores[id]={a:0,b:0};
+      mNo++;
+    });
+    tMin+=gt;
+  });
+
+  renderScore();
+  showTab('score');
+}
+
+function showTab(t){
+  ['setup','score'].forEach((x,i)=>{
+    document.getElementById('panel-'+x).classList.toggle('active',x===t);
+    document.querySelectorAll('.tab-btn')[i].classList.toggle('active',x===t);
+  });
+}
+
+function renderScore(){
+  if(!S.matches.length){document.getElementById('score-content').innerHTML='<div class="empty">대진표를 먼저 생성해주세요</div>';return;}
+  const rounds=[...new Set(S.matches.map(m=>m.round))];
+  const nowR=rounds[0];
+  const nowMs=S.matches.filter(m=>m.round===nowR);
+  const nextMs=S.matches.filter(m=>m.round===nowR+1);
+
+  let html=`<div class="now-banner">
+    <div class="now-title">지금 진행 중 · ${nowR}라운드 (${nowMs[0].time}~${nowMs[0].endTime})</div>
+    ${nowMs.map(m=>`<div class="now-line">코트${m.court} &nbsp;${m.a.map(p=>p.name+(p.ace?'<span class="ace-badge">ACE</span>':'')+'<span class="mf-'+p.gender.toLowerCase()+'">'+p.gender+'</span>').join(' & ')} vs ${m.b.map(p=>p.name+(p.ace?'<span class="ace-badge">ACE</span>':'')+'<span class="mf-'+p.gender.toLowerCase()+'">'+p.gender+'</span>').join(' & ')}</div>`).join('')}
+    ${nextMs.length?`<div class="next-line">다음 → ${nextMs.map(m=>m.a.map(p=>p.name).join('&')+' vs '+m.b.map(p=>p.name).join('&')).join(' / ')}</div>`:''}
+  </div>`;
+
+  rounds.forEach(r=>{
+    const ms=S.matches.filter(m=>m.round===r);
+    const resting=S.players.filter(p=>p.name&&!ms.some(m=>[...m.a,...m.b].find(x=>x.id===p.id)));
+    html+=`<div class="round-card">
+      <div class="round-hdr">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="round-title">${r}라운드</span>
+          ${r===nowR?'<span class="now-badge">NOW</span>':''}
+        </div>
+        <span class="round-time">${ms[0].time} ~ ${ms[0].endTime}</span>
+      </div>`;
+    ms.forEach(m=>{
+      const sc=S.scores[m.id];
+      const wA=sc.a>sc.b,wB=sc.b>sc.a;
+      html+=`<div class="match-block">
+        <div class="m-meta">
+          <span class="m-court">코트 ${m.court}</span>
+          <span class="m-type ${m.type}">${
+            m.type==='male'?'남복':
+            m.type==='mixed'?'혼복':
+            m.type==='partial'?'잡복':'여복'
+          }</span>
+        </div>
+        <div class="match-row">
+          <div class="team-box${wA?' winner':''}" id="tb-a-${m.id}">
+            <span class="t-emoji">${m.a.map(p=>p.emoji).join(' ')}</span>
+            <div class="t-name">${m.a.map(p=>p.name+'<span class="mf-'+p.gender.toLowerCase()+'">'+p.gender+'</span>').join(' & ')}</div>
+          </div>
+          <div class="vs-col">VS</div>
+          <div class="team-box${wB?' winner':''}" id="tb-b-${m.id}">
+            <span class="t-emoji">${m.b.map(p=>p.emoji).join(' ')}</span>
+            <div class="t-name">${m.b.map(p=>p.name+'<span class="mf-'+p.gender.toLowerCase()+'">'+p.gender+'</span>').join(' & ')}</div>
+          </div>
+        </div>
+        <div class="score-wrap">
+          <div class="team-btns">
+            <button class="sc-btn b-minus" onclick="adj('${m.id}','a',-1)">−</button>
+            <span class="t-score" id="sa-${m.id}">${sc.a}</span>
+            <button class="sc-btn b-plus" onclick="adj('${m.id}','a',1)">+</button>
+          </div>
+          <div class="team-btns">
+            <button class="sc-btn b-minus" onclick="adj('${m.id}','b',-1)">−</button>
+            <span class="t-score" id="sb-${m.id}">${sc.b}</span>
+            <button class="sc-btn b-plus" onclick="adj('${m.id}','b',1)">+</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    if(resting.length)html+=`<div class="rest-bar">쉬는 중 &nbsp;${resting.map(p=>p.emoji+' '+p.name).join('  ·  ')}</div>`;
+    html+='</div>';
+  });
+
+  html+=buildStand();
+  document.getElementById('score-content').innerHTML=html;
+}
+
+function calcStats(){
+  const stats={};
+  S.players.forEach(p=>{if(p.name)stats[p.id]={name:p.name,emoji:p.emoji,w:0,l:0,pts:0,games:0};});
+  // 참가자별 총 배정 경기 수
+  S.matches.forEach(m=>{
+    [...m.a,...m.b].forEach(p=>{if(stats[p.id])stats[p.id].games++;});
+  });
+  // 점수 입력된 경기만 승패/점수 집계
+  S.matches.forEach(m=>{
+    const sc=S.scores[m.id];
+    // 둘 중 하나라도 0보다 크거나, scored 플래그가 있으면 경기 진행됨
+    if(!m.scored) return;
+    m.a.forEach(p=>{if(stats[p.id]){stats[p.id].pts+=sc.a;if(sc.a>sc.b)stats[p.id].w++;else if(sc.b>sc.a)stats[p.id].l++;}});
+    m.b.forEach(p=>{if(stats[p.id]){stats[p.id].pts+=sc.b;if(sc.b>sc.a)stats[p.id].w++;else if(sc.a>sc.b)stats[p.id].l++;}});
+  });
+  return stats;
+}
+
+function buildStand(){
+  const stats=calcStats();
+  const sorted=Object.values(stats).sort((a,b)=>b.w-a.w||b.pts-a.pts);
+  const total=S.matches.length;
+  const done=S.matches.filter(m=>m.scored).length;
+  return `<div class="stand-hdr">
+    <div class="stand-title">🏆 승리 현황 (${done}/${total} 경기)</div>
+    <div class="prog-bg"><div class="prog-fill" id="prog" style="width:${total?Math.round(done/total*100):0}%"></div></div>
+  </div>
+  <div class="stand-grid" id="stand-grid">
+    ${sorted.map(p=>`<div class="stand-item">
+      <div class="st-emoji">${p.emoji}</div>
+      <div class="st-info"><div class="st-name">${p.name}<span class="st-games">(${p.games}게임)</span></div><div class="st-pts">${p.pts}점</div></div>
+      <div class="st-wins">${p.w}승</div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function adj(mid,side,delta){
+  S.scores[mid][side]=Math.max(0,S.scores[mid][side]+delta);
+  const sc=S.scores[mid];
+  // 점수가 둘다 0이면 scored 해제, 아니면 scored
+  const match=S.matches.find(m=>m.id===mid);
+  match.scored=(S.scores[mid].a>0||S.scores[mid].b>0);
+  document.getElementById('sa-'+mid).textContent=sc.a;
+  document.getElementById('sb-'+mid).textContent=sc.b;
+  const wA=sc.a>sc.b,wB=sc.b>sc.a;
+  document.getElementById('tb-a-'+mid).classList.toggle('winner',wA);
+  document.getElementById('tb-b-'+mid).classList.toggle('winner',wB);
+  const stats=calcStats();
+  const sorted=Object.values(stats).sort((a,b)=>b.w-a.w||b.pts-a.pts);
+  const total=S.matches.length;
+  const done=S.matches.filter(m=>m.scored).length;
+  const pg=document.getElementById('prog');
+  if(pg){
+    pg.style.width=(total?Math.round(done/total*100):0)+'%';
+    const titleEl=pg.closest('.stand-hdr')&&pg.closest('.stand-hdr').querySelector('.stand-title');
+    if(titleEl)titleEl.textContent='🏆 승리 현황 ('+done+'/'+total+' 경기)';
+  }
+  const sg=document.getElementById('stand-grid');
+  if(sg)sg.innerHTML=sorted.map(p=>`<div class="stand-item">
+    <div class="st-emoji">${p.emoji}</div>
+    <div class="st-info"><div class="st-name">${p.name}<span class="st-games">(${p.games}게임)</span></div><div class="st-pts">${p.pts}점</div></div>
+    <div class="st-wins">${p.w}승</div>
+  </div>`).join('');
+  // stand-grid가 없으면 전체 재렌더
+  if(!sg){
+    const sc=document.getElementById('score-content');
+    if(sc){const old=sc.innerHTML;sc.innerHTML=old;}
+  }
+}
+
+// 초기 실행: 박동환 1명만
+S.players=[{id:1,name:'박동환',gender:'M',ace:false,minGames:3,emoji:'🔴'}];
+S.uid=2;
+renderPlayers();
+</script>
+</body>
+</html>
