@@ -436,11 +436,9 @@ function generate(){
   showTab('score');
 }
 
-const CODE_ALPHABET='23456789ABCDEFGHJKMNPQRSTUVWXYZ'; // no 0/O/1/I to avoid confusion
 function genCode(){
-  let c='';
-  for(let i=0;i<6;i++)c+=CODE_ALPHABET[Math.floor(Math.random()*CODE_ALPHABET.length)];
-  return c;
+  // 2-digit numeric: watch keyboards make full alphanumeric codes painful to type.
+  return String(Math.floor(Math.random()*100)).padStart(2,'0');
 }
 
 let unsubscribeRemote=null;
