@@ -144,6 +144,14 @@ select.s-ctrl{min-width:120px}
 .toast.warn{background:#f59e0b}
 .toast.error{background:#ef4444}
 .toast.show{opacity:1}
+
+/* ── 공유 세션 카드 ── */
+.share-card{background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;text-align:center;border:1px solid var(--line)}
+.share-code{font-size:24px;font-weight:900;letter-spacing:3px;color:var(--blue-mid);margin:6px 0}
+.share-hint{font-size:12px;color:var(--muted);margin-bottom:10px}
+.share-qr{margin:8px auto;display:flex;justify-content:center}
+.share-btns{display:flex;gap:8px;margin-top:8px}
+.viewer-badge{display:inline-block;background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -204,11 +212,35 @@ select.s-ctrl{min-width:120px}
 </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, doc, setDoc, updateDoc, onSnapshot, serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAxo5x5rDDneYrCjRl65QkvsvLjRGVXQtk",
+  authDomain: "modutennis-c746f.firebaseapp.com",
+  projectId: "modutennis-c746f",
+  storageBucket: "modutennis-c746f.firebasestorage.app",
+  messagingSenderId: "681217367970",
+  appId: "1:681217367970:web:a335f964e9bb8f20695cfb",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Classic (non-module) script below reaches Firestore through this bridge,
+// since inline onclick handlers can't call into module scope directly.
+window.fb = { db, doc, setDoc, updateDoc, onSnapshot, serverTimestamp };
+window.dispatchEvent(new Event('fb-ready'));
+</script>
 <script>
 // 트렌디한 이모지 세트 — 자연/감성/힙한 조합
 const EMOJIS=['🔴','🔺','🟦','⭐','🎾','⚽','🏀','⚾','🐶','🐰','🦁','🐘','🎹','🎸','🥁','🎷'];
 
-let S={players:[],courts:2,matches:[],scores:{},uid:1};
+let S={players:[],courts:2,matches:[],scores:{},uid:1,code:null,viewer:false};
 
 function buildOpts(id,def){
   const el=document.getElementById(id); el.innerHTML='';
@@ -399,8 +431,133 @@ function generate(){
     tMin+=gt;
   });
 
+  publishSession();
   renderScore();
   showTab('score');
+}
+
+const CODE_ALPHABET='23456789ABCDEFGHJKMNPQRSTUVWXYZ'; // no 0/O/1/I to avoid confusion
+function genCode(){
+  let c='';
+  for(let i=0;i<6;i++)c+=CODE_ALPHABET[Math.floor(Math.random()*CODE_ALPHABET.length)];
+  return c;
+}
+
+let unsubscribeRemote=null;
+
+function toMatchesById(){
+  const out={};
+  S.matches.forEach(m=>{
+    out[m.id]={round:m.round,no:m.no,court:m.court,time:m.time,endTime:m.endTime,
+      a:m.a.map(p=>({name:p.name,gender:p.gender})),
+      b:m.b.map(p=>({name:p.name,gender:p.gender})),
+      type:m.type,scored:!!m.scored,score:S.scores[m.id]};
+  });
+  return out;
+}
+
+function publishSession(){
+  if(!window.fb){window.addEventListener('fb-ready',publishSession,{once:true});return;}
+  S.code=genCode();
+  const {db,doc,setDoc,serverTimestamp}=window.fb;
+  const ref=doc(db,'sessions',S.code);
+  setDoc(ref,{
+    createdAt:serverTimestamp(),
+    courts:S.courts,
+    players:S.players.filter(p=>p.name.trim()).map(p=>({name:p.name,gender:p.gender,ace:p.ace||false})),
+    matchesById:toMatchesById(),
+  }).then(()=>{
+    showToast('공유 코드 '+S.code+' 발급 완료','ok');
+    startRemoteSync();
+  }).catch(err=>{
+    console.error(err);
+    showToast('공유 세션 생성 실패 (오프라인?)','error');
+  });
+}
+
+function nameToId(name){return 'p_'+name;}
+
+/** Rebuild S entirely from a remote snapshot — used for viewer mode, where there's
+ * no local generate() result to merge into. Player/match ids are derived from names
+ * (the Firestore doc doesn't carry the organizer's local numeric ids). */
+function rebuildFromRemote(data){
+  S.courts=data.courts||S.courts;
+  S.players=(data.players||[]).map((p,i)=>({id:nameToId(p.name),name:p.name,gender:p.gender,ace:p.ace,emoji:EMOJIS[i%16],minGames:3}));
+  S.matches=[];S.scores={};
+  Object.entries(data.matchesById||{}).forEach(([id,m])=>{
+    const toTeam=arr=>arr.map(p=>({id:nameToId(p.name),name:p.name,gender:p.gender,ace:false,emoji:'🎾'}));
+    S.matches.push({id,round:m.round,no:m.no,court:m.court,time:m.time,endTime:m.endTime,a:toTeam(m.a),b:toTeam(m.b),type:m.type,scored:!!m.scored});
+    S.scores[id]=m.score||{a:0,b:0};
+  });
+  S.matches.sort((a,b)=>a.no-b.no);
+}
+
+function startRemoteSync(){
+  if(!S.code||!window.fb)return;
+  if(unsubscribeRemote)unsubscribeRemote();
+  const {db,doc,onSnapshot}=window.fb;
+  unsubscribeRemote=onSnapshot(doc(db,'sessions',S.code),snap=>{
+    const data=snap.data();
+    if(!data)return;
+    if(S.viewer){
+      rebuildFromRemote(data);
+      renderScore();
+      return;
+    }
+    if(!data.matchesById)return;
+    let changed=false;
+    Object.entries(data.matchesById).forEach(([id,rm])=>{
+      if(!rm.scored)return;
+      const local=S.scores[id];
+      if(!local||local.a!==rm.score.a||local.b!==rm.score.b){
+        S.scores[id]=rm.score;
+        const match=S.matches.find(x=>x.id===id);
+        if(match)match.scored=true;
+        changed=true;
+      }
+    });
+    if(changed)renderScore();
+  });
+}
+
+function pushMatchScore(mid){
+  if(!S.code||!window.fb)return;
+  const {db,doc,updateDoc}=window.fb;
+  const sc=S.scores[mid];
+  updateDoc(doc(db,'sessions',S.code),{
+    ['matchesById.'+mid+'.score']:sc,
+    ['matchesById.'+mid+'.scored']:(sc.a>0||sc.b>0),
+  }).catch(err=>console.error(err));
+}
+
+function shareUrl(){
+  return location.origin+location.pathname+'?s='+S.code;
+}
+
+function shareCardHtml(){
+  if(!S.code)return '';
+  return `<div class="share-card">
+    <div class="share-hint">참가자들에게 이 코드/링크를 공유하세요 · 워치에서도 이 코드로 참가</div>
+    <div class="share-code">${S.code}</div>
+    <div class="share-qr" id="share-qr"></div>
+    <div class="share-btns">
+      <button class="btn-sec" onclick="copyShareLink()">🔗 링크 복사</button>
+    </div>
+  </div>`;
+}
+
+function renderShareQr(){
+  const el=document.getElementById('share-qr');
+  if(!el||!S.code||typeof qrcode==='undefined')return;
+  const qr=qrcode(0,'M');
+  qr.addData(shareUrl());
+  qr.make();
+  el.innerHTML=qr.createImgTag(5,4);
+}
+
+function copyShareLink(){
+  navigator.clipboard.writeText(shareUrl()).then(()=>showToast('링크 복사됨','ok'))
+    .catch(()=>showToast('복사 실패','error'));
 }
 
 function showTab(t){
@@ -417,7 +574,7 @@ function renderScore(){
   const nowMs=S.matches.filter(m=>m.round===nowR);
   const nextMs=S.matches.filter(m=>m.round===nowR+1);
 
-  let html=`<div class="now-banner">
+  let html=(S.viewer?'<div class="viewer-badge">👀 보기 전용 (실시간)</div>':'')+shareCardHtml()+`<div class="now-banner">
     <div class="now-title">지금 진행 중 · ${nowR}라운드 (${nowMs[0].time}~${nowMs[0].endTime})</div>
     ${nowMs.map(m=>`<div class="now-line">코트${m.court} &nbsp;${m.a.map(p=>p.name+(p.ace?'<span class="ace-badge">ACE</span>':'')+'<span class="mf-'+p.gender.toLowerCase()+'">'+p.gender+'</span>').join(' & ')} vs ${m.b.map(p=>p.name+(p.ace?'<span class="ace-badge">ACE</span>':'')+'<span class="mf-'+p.gender.toLowerCase()+'">'+p.gender+'</span>').join(' & ')}</div>`).join('')}
     ${nextMs.length?`<div class="next-line">다음 → ${nextMs.map(m=>m.a.map(p=>p.name).join('&')+' vs '+m.b.map(p=>p.name).join('&')).join(' / ')}</div>`:''}
@@ -459,14 +616,14 @@ function renderScore(){
         </div>
         <div class="score-wrap">
           <div class="team-btns">
-            <button class="sc-btn b-minus" onclick="adj('${m.id}','a',-1)">−</button>
+            ${S.viewer?'':`<button class="sc-btn b-minus" onclick="adj('${m.id}','a',-1)">−</button>`}
             <span class="t-score" id="sa-${m.id}">${sc.a}</span>
-            <button class="sc-btn b-plus" onclick="adj('${m.id}','a',1)">+</button>
+            ${S.viewer?'':`<button class="sc-btn b-plus" onclick="adj('${m.id}','a',1)">+</button>`}
           </div>
           <div class="team-btns">
-            <button class="sc-btn b-minus" onclick="adj('${m.id}','b',-1)">−</button>
+            ${S.viewer?'':`<button class="sc-btn b-minus" onclick="adj('${m.id}','b',-1)">−</button>`}
             <span class="t-score" id="sb-${m.id}">${sc.b}</span>
-            <button class="sc-btn b-plus" onclick="adj('${m.id}','b',1)">+</button>
+            ${S.viewer?'':`<button class="sc-btn b-plus" onclick="adj('${m.id}','b',1)">+</button>`}
           </div>
         </div>
       </div>`;
@@ -477,6 +634,7 @@ function renderScore(){
 
   html+=buildStand();
   document.getElementById('score-content').innerHTML=html;
+  renderShareQr();
 }
 
 function calcStats(){
@@ -516,11 +674,13 @@ function buildStand(){
 }
 
 function adj(mid,side,delta){
+  if(S.viewer)return;
   S.scores[mid][side]=Math.max(0,S.scores[mid][side]+delta);
   const sc=S.scores[mid];
   // 점수가 둘다 0이면 scored 해제, 아니면 scored
   const match=S.matches.find(m=>m.id===mid);
   match.scored=(S.scores[mid].a>0||S.scores[mid].b>0);
+  pushMatchScore(mid);
   document.getElementById('sa-'+mid).textContent=sc.a;
   document.getElementById('sb-'+mid).textContent=sc.b;
   const wA=sc.a>sc.b,wB=sc.b>sc.a;
@@ -549,10 +709,23 @@ function adj(mid,side,delta){
   }
 }
 
-// 초기 실행: 박동환 1명만
-S.players=[{id:1,name:'박동환',gender:'M',ace:false,minGames:3,emoji:'🔴'}];
-S.uid=2;
-renderPlayers();
+const urlCode=new URLSearchParams(location.search).get('s');
+if(urlCode){
+  // Viewer mode: someone opened a shared link/QR — just watch the live session,
+  // no local setup.
+  S.viewer=true;
+  S.code=urlCode.toUpperCase();
+  document.querySelector('.tab-bar').style.display='none';
+  showTab('score');
+  document.getElementById('score-content').innerHTML='<div class="empty">불러오는 중...</div>';
+  if(window.fb)startRemoteSync();
+  else window.addEventListener('fb-ready',startRemoteSync,{once:true});
+} else {
+  // 초기 실행: 박동환 1명만
+  S.players=[{id:1,name:'박동환',gender:'M',ace:false,minGames:3,emoji:'🔴'}];
+  S.uid=2;
+  renderPlayers();
+}
 </script>
 </body>
 </html>
