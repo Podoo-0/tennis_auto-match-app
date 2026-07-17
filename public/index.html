@@ -40,7 +40,6 @@ body{font-family:'Apple SD Gothic Neo','-apple-system','BlinkMacSystemFont','Mal
 .g-btn{width:34px;height:36px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:#f5f5f5;color:#bbb;transition:all 0.1s;padding:0;line-height:36px;text-align:center}
 .g-btn.m.on{background:#2563eb;color:#fff}
 .g-btn.f.on{background:#dc2626;color:#fff}
-.min-g{width:40px;height:36px;border:1.5px solid #e0e0e0;border-radius:8px;text-align:center;font-size:13px;color:var(--text);background:#fff;flex-shrink:0}
 .del-btn{width:32px;height:32px;border-radius:50%;border:none;background:#fef2f2;color:#dc2626;font-size:14px;cursor:pointer;flex-shrink:0;transition:background 0.1s}
 .del-btn:hover{background:#fecaca}
 .btn-row{display:flex;gap:8px;margin-top:8px}
@@ -52,9 +51,6 @@ body{font-family:'Apple SD Gothic Neo','-apple-system','BlinkMacSystemFont','Mal
 .s-ctrl{border:1.5px solid #e0e0e0;border-radius:8px;padding:7px 10px;font-size:13px;background:#fff;color:var(--text);outline:none}
 input.s-ctrl{width:72px;text-align:right}
 select.s-ctrl{min-width:120px}
-.wish{width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:10px;font-size:13px;background:#fff;color:var(--text);resize:none;line-height:1.5;font-family:inherit}
-.wish:focus{outline:none;border-color:var(--blue)}
-.cc{font-size:11px;color:#aaa;text-align:right;margin-top:4px}
 .btn-gen{width:100%;padding:15px;background:var(--blue);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;letter-spacing:-0.3px;transition:background 0.15s}
 .btn-gen:hover{background:var(--blue-mid)}
 .btn-gen:disabled{background:#ccc;cursor:not-allowed}
@@ -177,10 +173,7 @@ select.s-ctrl{min-width:120px}
     <div class="card-title">⚙️ 경기 설정</div>
     <div class="s-row">
       <span class="s-lbl">🏟️ 코트 수</span>
-      <select class="s-ctrl" id="s-courts">
-        <option value="1">1코트</option>
-        <option value="2" selected>2코트</option>
-      </select>
+      <select class="s-ctrl" id="s-courts"></select>
     </div>
     <div class="s-row">
       <span class="s-lbl">⏱️ 경기 시간(분)</span>
@@ -198,11 +191,10 @@ select.s-ctrl{min-width:120px}
       <span class="s-lbl">🤸 몸풀기(분)</span>
       <input type="number" class="s-ctrl" id="s-warm" value="10" min="0" max="60">
     </div>
-  </div>
-  <div class="card">
-    <div class="card-title">💬 희망사항</div>
-    <textarea class="wish" id="s-wish" rows="3" maxlength="50" placeholder="예: 여자복식과 남자복식이 최소 3게임 되도록 구성" oninput="updateCC()"></textarea>
-    <div class="cc" id="cc">0/50</div>
+    <div class="s-row">
+      <span class="s-lbl">🚺 여자복식(F+F) 허용</span>
+      <input type="checkbox" id="s-allowff">
+    </div>
   </div>
   <button class="btn-gen" id="btn-gen" onclick="generate()" disabled>🎾 대진표 생성</button>
 </div>
@@ -263,7 +255,7 @@ buildOpts('s-end',22*60);
 function addPlayer(){
   if(S.players.length>=16)return;
   const i=S.players.length;
-  S.players.push({id:S.uid++,name:'',gender:'M',ace:false,minGames:3,emoji:EMOJIS[i%16]});
+  S.players.push({id:S.uid++,name:'',gender:'M',ace:false,emoji:EMOJIS[i%16]});
   renderPlayers();
 }
 
@@ -276,7 +268,7 @@ function showToast(msg, type='ok'){
 }
 
 function savePreset(){
-  const data=S.players.map(p=>({name:p.name,gender:p.gender,ace:p.ace||false,minGames:p.minGames,emoji:p.emoji}));
+  const data=S.players.map(p=>({name:p.name,gender:p.gender,ace:p.ace||false,emoji:p.emoji}));
   localStorage.setItem('tennis_preset',JSON.stringify(data));
   showToast('프리셋 저장 완료 ('+data.length+'명)','ok');
 }
@@ -286,7 +278,7 @@ function loadPreset(){
   if(!saved){showToast('저장된 프리셋이 없습니다. 먼저 프리셋 저장을 해주세요.','error');return;}
   const data=JSON.parse(saved);
   S.players=[];S.uid=1;
-  data.forEach((p,i)=>S.players.push({id:S.uid++,name:p.name,gender:p.gender,ace:p.ace||false,minGames:p.minGames||3,emoji:EMOJIS[i%16]}));
+  data.forEach((p,i)=>S.players.push({id:S.uid++,name:p.name,gender:p.gender,ace:p.ace||false,emoji:EMOJIS[i%16]}));
   renderPlayers();
   showToast('프리셋 불러오기 완료 ('+data.length+'명)','ok');
 }
@@ -295,8 +287,6 @@ function delP(id){S.players=S.players.filter(p=>p.id!==id);renderPlayers();}
 function setG(id,g){const p=S.players.find(x=>x.id===id);if(p){p.gender=g;renderPlayers();}}
 function setAce(id){const p=S.players.find(x=>x.id===id);if(p){p.ace=!p.ace;renderPlayers();}}
 function upN(id,v){const p=S.players.find(x=>x.id===id);if(p)p.name=v;}
-function upM(id,v){const p=S.players.find(x=>x.id===id);if(p)p.minGames=Math.max(1,parseInt(v)||1);}
-function updateCC(){document.getElementById('cc').textContent=document.getElementById('s-wish').value.length+'/50';}
 
 function renderPlayers(){
   document.getElementById('player-list').innerHTML=S.players.map((p,i)=>`
@@ -312,6 +302,21 @@ function renderPlayers(){
     </div>`).join('');
   document.getElementById('btn-add').style.display=S.players.length>=16?'none':'';
   document.getElementById('btn-gen').disabled=S.players.length<4;
+  updateCourtOptions();
+}
+
+/** Court dropdown range depends on how many players are registered (each court needs 4). */
+function updateCourtOptions(){
+  const sel=document.getElementById('s-courts');
+  const prev=sel.value;
+  const maxCourts=Math.max(1,Math.min(6,Math.floor(S.players.length/4)||1));
+  sel.innerHTML='';
+  for(let c=1;c<=maxCourts;c++){
+    const o=document.createElement('option');
+    o.value=c; o.textContent=c+'코트';
+    sel.appendChild(o);
+  }
+  sel.value=(prev&&Number(prev)<=maxCourts)?prev:String(maxCourts);
 }
 
 function shuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]];}return r;}
@@ -325,22 +330,26 @@ function generate(){
   if(males.length<2&&females.length<2){showToast('참가자가 부족합니다. (남자 또는 여자 최소 2명 필요)','error');return;}
   if(players.length<4){showToast('최소 4명이 필요합니다.','error');return;}
 
+  const allowFF=document.getElementById('s-allowff').checked;
+
   // 설정값 읽기 (let courts로 먼저 선언 후 조정)
-  let courts=parseInt(document.getElementById('s-courts').value)||2;
+  let courts=parseInt(document.getElementById('s-courts').value)||1;
   const gt=parseInt(document.getElementById('s-time').value)||15;
   const warm=parseInt(document.getElementById('s-warm').value)||0;
   const startM=parseInt(document.getElementById('s-start').value);
   const endM=parseInt(document.getElementById('s-end').value);
   if(endM<=startM){showToast('종료 시간이 시작 시간보다 늦어야 합니다.','error');return;}
 
-  // 코트 수 자동 조정
+  // 코트 수 자동 조정 (성별 조합 기준 + 실제 인원수 기준 둘 다 확인)
   const maxCourtsByM=Math.floor(males.length/2);
-  // 혼복 기준: 여자도 2명/코트 필요. 여자 없으면 남복만 → 남자 기준만
-  const maxCourtsByF=females.length>=2?Math.floor(females.length/2):maxCourtsByM;
-  const maxCourts=Math.min(maxCourtsByF,maxCourtsByM);
+  // 혼복 기준: 여자도 2명/코트 필요. 여자 없으면 남복만 → 남자 기준만. 여여 허용 시엔 성별 제약 없음.
+  const maxCourtsByF=allowFF?Infinity:(females.length>=2?Math.floor(females.length/2):maxCourtsByM);
+  const maxCourtsByCount=Math.floor(players.length/4);
+  const maxCourts=Math.min(maxCourtsByF,maxCourtsByM,maxCourtsByCount);
   if(courts>maxCourts){
     courts=Math.max(1,maxCourts);
     showToast('인원 기준 '+courts+'코트로 자동 조정됐습니다.','warn');
+    document.getElementById('s-courts').value=String(courts);
   }
 
   const available=endM-startM-warm;
@@ -361,13 +370,22 @@ function generate(){
       [[pool[0],pool[2]],[pool[1],pool[3]]],
       [[pool[0],pool[3]],[pool[1],pool[2]]],
     ].filter(([tA,tB])=>
-      !(tA[0].gender==='F'&&tA[1].gender==='F')&&
-      !(tB[0].gender==='F'&&tB[1].gender==='F')
+      allowFF||(!(tA[0].gender==='F'&&tA[1].gender==='F')&&!(tB[0].gender==='F'&&tB[1].gender==='F'))
     );
     if(!combos.length) return null;
     return combos.reduce((a,b)=>
       Math.abs(tw(a[0])-tw(a[1]))<=Math.abs(tw(b[0])-tw(b[1]))?a:b
     );
+  }
+
+  // 팀 성별 유형: 같은 성별끼리면 'M'/'F', 섞이면 null(믹스)
+  function teamGender(t){return t[0].gender===t[1].gender?t[0].gender:null;}
+  function matchType(tA,tB){
+    const gA=teamGender(tA),gB=teamGender(tB);
+    if(gA===null&&gB===null)return'mixed';
+    if(gA==='M'&&gB==='M')return'male';
+    if(gA==='F'&&gB==='F')return'female';
+    return'partial';
   }
 
   for(let r=0;r<maxRounds;r++){
@@ -381,15 +399,17 @@ function generate(){
     });
     let selected=sorted.slice(0,needed);
 
-    // 여자 초과 시 남자로 교환 (여여 방지)
-    const fInSel=selected.filter(p=>p.gender==='F').length;
-    if(fInSel>courts*2){
-      const excess=fInSel-courts*2;
-      const extraM=sorted.slice(needed).filter(p=>p.gender==='M').slice(0,excess);
-      if(extraM.length>=excess){
-        const fToSwap=selected.filter(p=>p.gender==='F').slice(courts*2);
-        selected=selected.filter(p=>!fToSwap.includes(p));
-        selected.push(...extraM);
+    // 여자 초과 시 남자로 교환 (여여 방지) — 여여 허용 모드에서는 굳이 피할 필요 없음
+    if(!allowFF){
+      const fInSel=selected.filter(p=>p.gender==='F').length;
+      if(fInSel>courts*2){
+        const excess=fInSel-courts*2;
+        const extraM=sorted.slice(needed).filter(p=>p.gender==='M').slice(0,excess);
+        if(extraM.length>=excess){
+          const fToSwap=selected.filter(p=>p.gender==='F').slice(courts*2);
+          selected=selected.filter(p=>!fToSwap.includes(p));
+          selected.push(...extraM);
+        }
       }
     }
     if(selected.length<needed) continue;
@@ -401,9 +421,7 @@ function generate(){
       if(pool.length<4){ok=false;break;}
       const pair=getBestPairing(pool);
       if(!pair){ok=false;break;}
-      const tAisMix=pair[0][0].gender!==pair[0][1].gender;
-      const tBisMix=pair[1][0].gender!==pair[1][1].gender;
-      const type=tAisMix&&tBisMix?'mixed':(!tAisMix&&!tBisMix?'male':'partial');
+      const type=matchType(pair[0],pair[1]);
       roundMatches.push({court:c+1,tA:pair[0],tB:pair[1],type});
     }
 
@@ -447,8 +465,8 @@ function toMatchesById(){
   const out={};
   S.matches.forEach(m=>{
     out[m.id]={round:m.round,no:m.no,court:m.court,time:m.time,endTime:m.endTime,
-      a:m.a.map(p=>({name:p.name,gender:p.gender})),
-      b:m.b.map(p=>({name:p.name,gender:p.gender})),
+      a:m.a.map(p=>({id:String(p.id),name:p.name,gender:p.gender})),
+      b:m.b.map(p=>({id:String(p.id),name:p.name,gender:p.gender})),
       type:m.type,scored:!!m.scored,score:S.scores[m.id]};
   });
   return out;
@@ -462,7 +480,7 @@ function publishSession(){
   setDoc(ref,{
     createdAt:serverTimestamp(),
     courts:S.courts,
-    players:S.players.filter(p=>p.name.trim()).map(p=>({name:p.name,gender:p.gender,ace:p.ace||false})),
+    players:S.players.filter(p=>p.name.trim()).map(p=>({id:String(p.id),name:p.name,gender:p.gender,ace:p.ace||false})),
     matchesById:toMatchesById(),
   }).then(()=>{
     showToast('공유 코드 '+S.code+' 발급 완료','ok');
@@ -473,17 +491,15 @@ function publishSession(){
   });
 }
 
-function nameToId(name){return 'p_'+name;}
-
 /** Rebuild S entirely from a remote snapshot — used for viewer mode, where there's
- * no local generate() result to merge into. Player/match ids are derived from names
- * (the Firestore doc doesn't carry the organizer's local numeric ids). */
+ * no local generate() result to merge into. Uses the organizer's real player id
+ * (now included in the Firestore payload) so same-name players don't collide. */
 function rebuildFromRemote(data){
   S.courts=data.courts||S.courts;
-  S.players=(data.players||[]).map((p,i)=>({id:nameToId(p.name),name:p.name,gender:p.gender,ace:p.ace,emoji:EMOJIS[i%16],minGames:3}));
+  S.players=(data.players||[]).map((p,i)=>({id:p.id||('p_'+p.name),name:p.name,gender:p.gender,ace:p.ace,emoji:EMOJIS[i%16]}));
   S.matches=[];S.scores={};
   Object.entries(data.matchesById||{}).forEach(([id,m])=>{
-    const toTeam=arr=>arr.map(p=>({id:nameToId(p.name),name:p.name,gender:p.gender,ace:false,emoji:'🎾'}));
+    const toTeam=arr=>arr.map(p=>({id:p.id||('p_'+p.name),name:p.name,gender:p.gender,ace:false,emoji:'🎾'}));
     S.matches.push({id,round:m.round,no:m.no,court:m.court,time:m.time,endTime:m.endTime,a:toTeam(m.a),b:toTeam(m.b),type:m.type,scored:!!m.scored});
     S.scores[id]=m.score||{a:0,b:0};
   });
@@ -712,7 +728,7 @@ if(urlCode){
   // Viewer mode: someone opened a shared link/QR — just watch the live session,
   // no local setup.
   S.viewer=true;
-  S.code=urlCode.toUpperCase();
+  S.code=urlCode.trim();
   document.querySelector('.tab-bar').style.display='none';
   showTab('score');
   document.getElementById('score-content').innerHTML='<div class="empty">불러오는 중...</div>';
@@ -720,7 +736,7 @@ if(urlCode){
   else window.addEventListener('fb-ready',startRemoteSync,{once:true});
 } else {
   // 초기 실행: 박동환 1명만
-  S.players=[{id:1,name:'박동환',gender:'M',ace:false,minGames:3,emoji:'🔴'}];
+  S.players=[{id:1,name:'박동환',gender:'M',ace:false,emoji:'🔴'}];
   S.uid=2;
   renderPlayers();
 }
